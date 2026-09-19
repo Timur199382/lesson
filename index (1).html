@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Простое предложение — интерактивный урок</title>
+<style>
+/* ===================== ПЕРЕМЕННЫЕ И БАЗА ===================== */
+:root{
+  --bg:#FFF8E7; --ink:#2D3142;
+  --coral:#FF6B6B; --teal:#4ECDC4; --yellow:#FFD93D; --purple:#A78BFA; --green:#6BCB77;
+  --card:#FFFFFF; --shadow:0 10px 30px rgba(45,49,66,.15);
+  --radius:28px;
+  --f-base:clamp(32px,3.2vw,54px);
+  --f-h1:clamp(56px,7vw,110px);
+  --f-h2:clamp(44px,5vw,80px);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%; margin:0;}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Segoe UI Rounded","Comic Sans MS","Trebuchet MS",system-ui,sans-serif;
+  font-size:var(--f-base); overflow:hidden; user-select:none;
+}
+#app{position:fixed; inset:0; overflow:hidden;}
+button{font-family:inherit; cursor:pointer; border:none; touch-action:manipulation;}
+
+/* ===================== ШАПКА / ПРОГРЕСС ===================== */
+#topbar{position:absolute; top:0; left:0; right:0; height:88px; z-index:50;
+  display:flex; align-items:center; justify-content:center; gap:18px; padding:0 20px;}
+#dots{display:flex; gap:12px; flex-wrap:wrap; justify-content:center; max-width:70vw;}
+.dot{width:18px; height:18px; min-width:18px; border-radius:50%;
+  background:#E4DCCB; transition:all .3s; box-shadow:inset 0 2px 4px rgba(0,0,0,.08);}
+.dot.active{background:var(--coral); transform:scale(1.45);}
+.dot.done{background:var(--teal);}
+#topbtns{position:absolute; right:16px; top:14px; display:flex; gap:12px;}
+.iconbtn{width:64px; height:64px; min-width:64px; min-height:64px; border-radius:20px;
+  background:var(--card); box-shadow:var(--shadow); font-size:30px;
+  display:flex; align-items:center; justify-content:center; transition:transform .15s;}
+.iconbtn:active{transform:scale(.9);}
+
+/* ===================== СЛАЙДЫ ===================== */
+#stage{position:absolute; inset:0;}
+.slide{position:absolute; inset:0; padding:110px 5vw 140px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; text-align:center; gap:2.2vh;
+  opacity:0; pointer-events:none; transform:translateX(6vw) scale(.98);
+  transition:opacity .45s ease, transform .45s ease; overflow:hidden;}
+.slide.active{opacity:1; pointer-events:auto; transform:none;}
+.slide.exit-left{transform:translateX(-6vw) scale(.98);}
+h1{font-size:var(--f-h1); margin:0; line-height:1.08;}
+h2{font-size:var(--f-h2); margin:0;}
+.sub{font-size:clamp(26px,2.4vw,40px); opacity:.75; margin:0;}
+.card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
+  padding:3vh 3vw; max-width:1200px;}
+
+/* ===================== КНОПКИ ===================== */
+.btn{min-width:220px; min-height:80px; padding:14px 42px; border-radius:26px;
+  font-size:clamp(30px,3vw,48px); font-weight:700; color:#fff; background:var(--coral);
+  box-shadow:0 8px 0 rgba(0,0,0,.14); transition:transform .15s, box-shadow .15s;}
+.btn:active{transform:translateY(5px); box-shadow:0 3px 0 rgba(0,0,0,.14);}
+.btn.teal{background:var(--teal);} .btn.yellow{background:#EFB810;} .btn.purple{background:var(--purple);}
+.btn.ghost{background:var(--card); color:var(--ink); box-shadow:var(--shadow);}
+.btn.small{min-width:180px; min-height:70px; font-size:clamp(24px,2.2vw,36px); padding:10px 28px;}
+.btnrow{display:flex; gap:20px; flex-wrap:wrap; justify-content:center;}
+
+/* ===================== КАРТОЧКИ-СЛОВА ===================== */
+.wordchip{display:inline-flex; align-items:center; justify-content:center;
+  background:var(--card); border-radius:22px; box-shadow:var(--shadow);
+  padding:1.4vh 2.2vw; font-size:clamp(30px,3vw,52px); font-weight:700;
+  cursor:pointer; position:relative; touch-action:none; user-select:none;
+  animation:breathe 2.6s ease-in-out infinite; transition:transform .15s, background .2s;}
+.wordchip:hover{transform:translateY(-4px) scale(1.04);}
+.wordchip.dragging{opacity:.35;}
+.wordchip.floating{position:fixed; z-index:200; pointer-events:none; margin:0;
+  animation:none; transform:scale(1.12) rotate(-3deg); box-shadow:0 18px 40px rgba(45,49,66,.3);}
+.wordchip.locked{cursor:default; animation:none;}
+.wordchip.pop{animation:pop .5s ease;}
+@keyframes breathe{0%,100%{transform:scale(1)} 50%{transform:scale(1.035)}}
+@keyframes pop{0%{transform:scale(1)} 45%{transform:scale(1.22) rotate(3deg)} 100%{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:translateX(0)} 20%{transform:translateX(-14px)} 40%{transform:translateX(14px)} 60%{transform:translateX(-9px)} 80%{transform:translateX(9px)}}
+.shake{animation:shake .5s ease;}
+@keyframes drawline{from{transform:scaleX(0)} to{transform:scaleX(1)}}
+
+/* подчёркивания */
+.u-sub::after{content:""; position:absolute; left:6%; right:6%; bottom:-10px; height:8px;
+  border-radius:5px; background:var(--coral); transform:scaleX(0); transform-origin:left center;
+  animation:drawline .55s ease forwards;}
+.u-pred{ text-decoration:underline wavy var(--teal) 7px; text-underline-offset:12px;
+  animation:pop .5s ease;}
+.u-both{outline:6px dashed var(--purple); outline-offset:8px; border-radius:22px; animation:pop .5s ease;}
+
+/* ===================== КОРЗИНЫ / ЗОНЫ ===================== */
+.zones{display:flex; gap:3vw; justify-content:center; width:100%; max-width:1400px;}
+.zone{flex:1; min-height:34vh; border:6px dashed #D8CFBB; border-radius:var(--radius);
+  background:rgba(255,255,255,.6); padding:2vh 1.5vw; display:flex; flex-direction:column;
+  gap:14px; align-items:center; transition:all .25s;}
+.zone h3{margin:0 0 4px; font-size:clamp(28px,2.6vw,44px);}
+.zone.hot{border-color:var(--teal); background:rgba(78,205,196,.12);}
+.zone.good{border-color:var(--green); background:rgba(107,203,119,.18);}
+.zone.bad{border-color:var(--coral); background:rgba(255,107,107,.15);}
+.pool{display:flex; flex-wrap:wrap; gap:16px; justify-content:center; max-width:1200px;}
+.slots{display:flex; flex-wrap:wrap; gap:16px; justify-content:center;}
+.slot{min-width:9vw; min-height:9vh; border:5px dashed #D8CFBB; border-radius:22px;
+  padding:1.2vh 1.4vw; display:flex; align-items:center; justify-content:center; transition:all .2s;}
+.slot.hot{border-color:var(--coral); background:rgba(255,107,107,.08);}
+
+/* ===================== ОПЦИИ / ВАРИАНТЫ ===================== */
+.opts{display:flex; flex-direction:column; gap:18px; align-items:stretch; min-width:min(900px,80vw);}
+.opt{min-height:84px; padding:12px 34px; border-radius:22px; background:var(--card);
+  box-shadow:var(--shadow); font-size:clamp(28px,2.8vw,46px); font-weight:700; color:var(--ink);
+  transition:all .15s; border:5px solid transparent;}
+.opt:hover{transform:scale(1.03); border-color:var(--yellow);}
+.opt.sel{border-color:var(--purple); background:#EFE9FF;}
+.opt.right{background:#E4F7E8; border-color:var(--green);}
+.opt.wrongpick{background:#FDECEC; border-color:var(--coral);}
+
+/* предложение-словами */
+.sentence{display:flex; flex-wrap:wrap; gap:16px; justify-content:center; align-items:center;
+  background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
+  padding:3vh 3vw; max-width:1300px; min-height:14vh;}
+
+/* ===================== МАСКОТ ===================== */
+#mascot{position:fixed; right:1.5vw; bottom:110px; z-index:60; display:flex;
+  flex-direction:column; align-items:flex-end; gap:8px; pointer-events:none;}
+#bubble{background:#fff; border-radius:24px 24px 4px 24px; box-shadow:var(--shadow);
+  padding:12px 22px; font-size:clamp(20px,1.8vw,30px); max-width:26vw; text-align:left;
+  line-height:1.25; opacity:0; transform:translateY(10px); transition:all .35s;}
+#bubble.show{opacity:1; transform:none;}
+#fox{font-size:clamp(70px,8vw,130px); animation:foxbob 3s ease-in-out infinite;
+  filter:drop-shadow(0 8px 10px rgba(0,0,0,.18));}
+#fox.happy{animation:foxjump .7s ease;}
+@keyframes foxbob{0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)}}
+@keyframes foxjump{0%{transform:translateY(0) scale(1)} 35%{transform:translateY(-42px) scale(1.12) rotate(-6deg)} 70%{transform:translateY(0) scale(.96)} 100%{transform:scale(1)}}
+
+/* ===================== НАВИГАЦИЯ ===================== */
+#nav{position:absolute; left:0; right:0; bottom:18px; z-index:55; display:flex;
+  justify-content:space-between; padding:0 2vw; pointer-events:none;}
+.navbtn{pointer-events:auto; min-width:120px; min-height:80px; padding:10px 30px;
+  border-radius:24px; background:var(--card); box-shadow:var(--shadow);
+  font-size:clamp(26px,2.4vw,40px); font-weight:700; color:var(--ink); transition:all .15s;}
+.navbtn:active{transform:scale(.93);}
+.navbtn:disabled{opacity:.35; cursor:default;}
+#starbar{position:absolute; left:1.5vw; top:14px; z-index:50; background:var(--card);
+  border-radius:20px; box-shadow:var(--shadow); padding:10px 22px; font-size:clamp(26px,2.4vw,40px); font-weight:700;}
+
+/* ===================== ТОСТ / КОНФЕТТИ ===================== */
+#toast{position:fixed; left:50%; bottom:130px; transform:translateX(-50%) translateY(30px);
+  z-index:300; background:var(--ink); color:#fff; border-radius:22px; padding:16px 36px;
+  font-size:clamp(26px,2.4vw,40px); opacity:0; transition:all .35s; pointer-events:none;
+  max-width:80vw; text-align:center;}
+#toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+#toast.good{background:var(--green);} #toast.hint{background:#EFB810;}
+#confetti{position:fixed; inset:0; pointer-events:none; z-index:250; overflow:hidden;}
+.cf{position:absolute; top:-4vh; width:16px; height:26px; border-radius:4px; animation:cfall linear forwards;}
+@keyframes cfall{to{transform:translateY(112vh) rotate(760deg);}}
+
+/* ===================== ПАНЕЛЬ УЧИТЕЛЯ ===================== */
+#panel{position:fixed; top:0; right:0; bottom:0; width:min(480px,90vw); z-index:400;
+  background:#fff; box-shadow:-12px 0 40px rgba(0,0,0,.2); padding:24px; overflow-y:auto;
+  transform:translateX(105%); transition:transform .35s; font-size:22px;}
+#panel.open{transform:none;}
+#panel h3{font-size:30px; margin:8px 0 14px;}
+#panel .btn{font-size:22px; min-height:60px; min-width:0; width:100%; margin-bottom:10px;}
+#panelgrid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px;}
+#panelgrid button{min-height:56px; border-radius:12px; background:#F2EDE0; font-size:20px; font-weight:700;}
+#panelgrid button.cur{background:var(--coral); color:#fff;}
+#timerbig{font-size:44px; font-weight:800; text-align:center; margin:6px 0;}
+#panelclose{position:absolute; top:12px; right:12px; width:56px; height:56px; border-radius:14px;
+  background:#F2EDE0; font-size:26px;}
+
+/* ===================== ТИТУЛ / ЦЕЛЬ / РАЗНОЕ ===================== */
+.titlefox{font-size:clamp(90px,14vw,220px); animation:foxbob 3s ease-in-out infinite;
+  filter:drop-shadow(0 12px 14px rgba(0,0,0,.18));}
+.goallist{display:flex; flex-direction:column; gap:2vh; align-items:flex-start; text-align:left;}
+.goal{display:flex; align-items:center; gap:22px; background:var(--card); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:2vh 3vw; font-size:clamp(28px,2.8vw,46px); font-weight:700;
+  opacity:0; transform:translateX(-40px); transition:all .5s;}
+.goal.in{opacity:1; transform:none;}
+.goal .gi{font-size:clamp(40px,4vw,64px);}
+.phystep{font-size:clamp(44px,6vw,90px); font-weight:800; min-height:22vh; display:flex;
+  flex-direction:column; align-items:center; justify-content:center; gap:1vh;}
+.phystep .pe{font-size:clamp(70px,9vw,140px);}
+#phystimer{font-size:clamp(40px,4.5vw,72px); font-weight:800;}
+#physbar{width:min(700px,70vw); height:26px; border-radius:14px; background:#EDE5D2; overflow:hidden;}
+#physfill{height:100%; width:100%; background:var(--teal); border-radius:14px; transition:width 1s linear;}
+.bigq{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
+  padding:3vh 4vw; font-size:clamp(32px,3.4vw,56px); font-weight:700; max-width:1200px;}
+.qcount{font-size:clamp(24px,2.2vw,36px); font-weight:700; color:#8a8474;}
+.trlight{display:flex; gap:3vw;}
+.tlbtn{width:clamp(160px,16vw,260px); height:clamp(160px,16vw,260px); border-radius:32px;
+  font-size:clamp(52px,5vw,84px); display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:6px; color:#fff; font-weight:800; box-shadow:var(--shadow);
+  transition:transform .15s; border:8px solid transparent;}
+.tlbtn span{font-size:clamp(18px,1.6vw,28px);}
+.tlbtn:active{transform:scale(.93);}
+.tlbtn.sel{border-color:var(--ink); transform:scale(1.08);}
+#moods{display:flex; gap:18px;}
+.mood{font-size:clamp(48px,5vw,80px); background:var(--card); border-radius:24px; box-shadow:var(--shadow);
+  width:clamp(90px,9vw,140px); height:clamp(90px,9vw,140px); transition:all .15s; border:6px solid transparent;}
+.mood.sel{border-color:var(--coral); transform:scale(1.15);}
+.medal{font-size:clamp(90px,12vw,180px); animation:pop .8s ease; filter:drop-shadow(0 10px 12px rgba(0,0,0,.2));}
+.assemble-src{display:flex; gap:18px; flex-wrap:wrap; justify-content:center; min-height:12vh;}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important; transition-duration:.01ms !important;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="starbar">⭐ <span id="starcount">0</span></div>
+  <div id="topbar">
+    <div id="dots"></div>
+    <div id="topbtns">
+      <button class="iconbtn" id="sndbtn" title="Звук">🔊</button>
+      <button class="iconbtn" id="fsbtn" title="Во весь экран">⛶</button>
+      <button class="iconbtn" id="gearbtn" title="Панель учителя">⚙️</button>
+    </div>
+  </div>
+
+  <div id="stage">
+
+    <!-- 0. ТИТУЛ -->
+    <section class="slide" id="s-title">
+      <div class="titlefox">🦊</div>
+      <h1>Простое предложение</h1>
+      <p class="sub">Интерактивный урок · 3 класс · Русский язык</p>
+      <button class="btn" data-go="1">Начать 🚀</button>
+    </section>
+
+    <!-- 1. ЦЕЛЬ УРОКА -->
+    <section class="slide" id="s-goal">
+      <h2>Что мы сегодня сделаем?</h2>
+      <div class="goallist">
+        <div class="goal"><span class="gi">🔍</span> Узнаем, что такое предложение</div>
+        <div class="goal"><span class="gi">⭐</span> Научимся находить главные слова</div>
+        <div class="goal"><span class="gi">💪</span> Потренируемся на интересных заданиях</div>
+      </div>
+    </section>
+
+    <!-- 2. РАЗМИНКА -->
+    <section class="slide" id="s-warmup">
+      <h2>Разминка: слово или предложение?</h2>
+      <p class="sub">Перетащи (или коснись) каждой карточки и разложи по корзинам</p>
+      <div class="pool" id="warmup-pool"></div>
+      <div class="zones">
+        <div class="zone" data-type="word"><h3>🧩 Слово</h3></div>
+        <div class="zone" data-type="sentence"><h3>📖 Предложение</h3></div>
+      </div>
+    </section>
+
+    <!-- 3. ЧТО ТАКОЕ ПРЕДЛОЖЕНИЕ -->
+    <section class="slide" id="s-what">
+      <h2>Что такое предложение?</h2>
+      <div class="card">
+        <p style="margin:0 0 2vh;"><b>Предложение</b> — это слова, которые связаны по смыслу
+        и выражают законченную мысль.</p>
+        <div id="assemble-demo" style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;"></div>
+      </div>
+      <p class="sub" id="what-msg">Смотри, как разрозненные слова собрались в мини-историю! 💫</p>
+    </section>
+
+    <!-- 4. ПРОСТОЕ ПРЕДЛОЖЕНИЕ -->
+    <section class="slide" id="s-simple">
+      <h2>Простое предложение</h2>
+      <div class="card">
+        <p style="margin:0 0 2vh;">В <b>простом</b> предложении — <span style="color:var(--purple)"><b>одна грамматическая основа</b></span>.</p>
+        <div class="sentence" id="simple-sent"></div>
+      </div>
+      <div class="btnrow">
+        <button class="btn teal" id="btn-foundation">Показать основу ✨</button>
+      </div>
+    </section>
+
+    <!-- 5. ГЛАВНЫЕ ЧЛЕНЫ -->
+    <section class="slide" id="s-members">
+      <h2>Главные члены предложения</h2>
+      <div class="card" style="display:flex; gap:3vw; flex-wrap:wrap; justify-content:center;">
+        <div><div style="font-size:clamp(40px,4vw,64px)">🐣</div><b>Подлежащее</b><br><span class="sub">Кто? Что?</span></div>
+        <div><div style="font-size:clamp(40px,4vw,64px)">⚡</div><b>Сказуемое</b><br><span class="sub">Что делает?</span></div>
+      </div>
+      <div class="sentence" id="members-sent"></div>
+      <p class="sub" id="members-task">Коснись сначала подлежащего, потом сказуемого!</p>
+    </section>
+
+    <!-- 6. ФИЗКУЛЬТМИНУТКА -->
+    <section class="slide" id="s-phys">
+      <h2>Физкультминутка! 🏃</h2>
+      <div id="phystimer">60</div>
+      <div id="physbar"><div id="physfill"></div></div>
+      <div class="phystep" id="physstep"><span class="pe">🌟</span><span>Приготовились!</span></div>
+      <div class="btnrow">
+        <button class="btn teal" id="btn-phys">Старт!</button>
+      </div>
+    </section>
+
+    <!-- 7. СОБЕРИ ПРЕДЛОЖЕНИЕ -->
+    <section class="slide" id="s-assemble">
+      <h2>Собери предложение 🧱</h2>
+      <p class="sub">Перетащи слова в правильном порядке</p>
+      <div class="assemble-src" id="asm-src"></div>
+      <div class="slots" id="asm-slots"></div>
+      <div class="btnrow">
+        <button class="btn small yellow" id="asm-check">Проверить ✅</button>
+        <button class="btn small ghost" id="asm-again">Ещё раз 🔄</button>
+        <button class="btn small ghost" id="asm-hint">Подсказка 💡</button>
+      </div>
+    </section>
+
+    <!-- 8. НАЙДИ ОСНОВУ -->
+    <section class="slide" id="s-findbase">
+      <h2>Найди основу 🔎</h2>
+      <p class="sub">Коснись подлежащего и сказуемого</p>
+      <div class="sentence" id="fb-sent"></div>
+      <div class="btnrow">
+        <button class="btn small ghost" id="fb-again">Ещё раз 🔄</button>
+        <button class="btn small ghost" id="fb-hint">Подсказка 💡</button>
+      </div>
+    </section>
+
+    <!-- 9. ВСТАВЬ СЛОВО -->
+    <section class="slide" id="s-gap">
+      <h2>Вставь пропущенное слово 🧩</h2>
+      <div class="bigq" id="gap-sent"></div>
+      <div class="opts" id="gap-opts"></div>
+      <div class="btnrow">
+        <button class="btn small yellow" id="gap-check">Проверить ✅</button>
+        <button class="btn small ghost" id="gap-again">Ещё раз 🔄</button>
+        <button class="btn small ghost" id="gap-hint">Подсказка 💡</button>
+      </div>
+    </section>
+
+    <!-- 10. ПРОСТОЕ ИЛИ НЕТ -->
+    <section class="slide" id="s-simpleor">
+      <h2>Простое или сложное? ⚖️</h2>
+      <p class="sub">Перетащи предложения в нужные корзины. В простом — ОДНА основа!</p>
+      <div class="pool" id="so-pool"></div>
+      <div class="zones">
+        <div class="zone" data-type="simple"><h3>☝️ Простое</h3></div>
+        <div class="zone" data-type="complex"><h3>✌️ Две основы</h3></div>
+      </div>
+      <div class="btnrow">
+        <button class="btn small yellow" id="so-check">Проверить ✅</button>
+        <button class="btn small ghost" id="so-again">Ещё раз 🔄</button>
+        <button class="btn small ghost" id="so-hint">Подсказка 💡</button>
+      </div>
+    </section>
+
+    <!-- 11. ИСПРАВЬ ОШИБКУ -->
+    <section class="slide" id="s-fix">
+      <h2>Исправь ошибку 🛠️</h2>
+      <p class="sub">Слова перепутались! Расставь их в правильном порядке</p>
+      <div class="slots" id="fix-slots"></div>
+      <div class="assemble-src" id="fix-src"></div>
+      <div class="btnrow">
+        <button class="btn small yellow" id="fix-check">Проверить ✅</button>
+        <button class="btn small ghost" id="fix-again">Ещё раз 🔄</button>
+        <button class="btn small ghost" id="fix-hint">Подсказка 💡</button>
+      </div>
+    </section>
+
+    <!-- 12. ИГРА НА СКОРОСТЬ -->
+    <section class="slide" id="s-speed">
+      <h2>Найди предложение! ⚡</h2>
+      <p class="sub">Среди слов спряталось предложение. Нажми на него как можно быстрее!</p>
+      <div class="qcount" id="sp-round">Раунд 1 из 3</div>
+      <div class="pool" id="sp-grid" style="max-width:1100px;"></div>
+    </section>
+
+    <!-- 13. ИТОГОВЫЙ ТЕСТ -->
+    <section class="slide" id="s-quiz">
+      <h2>Итоговая проверка 🏆</h2>
+      <div class="qcount" id="qz-count">Вопрос 1 из 5</div>
+      <div class="bigq" id="qz-q"></div>
+      <div class="opts" id="qz-opts"></div>
+    </section>
+
+    <!-- 14. РЕФЛЕКСИЯ -->
+    <section class="slide" id="s-reflect">
+      <h2>Светофор 🚦</h2>
+      <p class="sub">Как ты понял урок?</p>
+      <div class="trlight">
+        <button class="tlbtn" data-r="green" style="background:var(--green)">😀<span>Всё понял!</span></button>
+        <button class="tlbtn" data-r="yellow" style="background:#EFB810">🤔<span>Есть вопросы</span></button>
+        <button class="tlbtn" data-r="red" style="background:var(--coral)">🙋<span>Нужна помощь</span></button>
+      </div>
+      <p class="sub">Какое у тебя настроение?</p>
+      <div id="moods">
+        <button class="mood">🤩</button><button class="mood">😊</button>
+        <button class="mood">😐</button><button class="mood">😴</button><button class="mood">😢</button>
+      </div>
+      <button class="btn" data-go="15">Итоги урока ➡</button>
+    </section>
+
+    <!-- 15. ИТОГ -->
+    <section class="slide" id="s-final">
+      <div class="medal">🏅</div>
+      <h2>Урок завершён!</h2>
+      <div class="card">
+        <p style="font-size:clamp(36px,4vw,64px); margin:0;">Класс заработал<br><b style="color:var(--coral)">⭐ <span id="final-stars">0</span> звёзд</b></p>
+      </div>
+      <p class="sub" id="final-praise"></p>
+      <div class="btnrow">
+        <button class="btn teal" id="btn-restart">Пройти ещё раз 🔄</button>
+      </div>
+    </section>
+
+  </div>
+
+  <div id="nav">
+    <button class="navbtn" id="btn-prev">◀ Назад</button>
+    <button class="navbtn" id="btn-next">Вперёд ▶</button>
+  </div>
+
+  <div id="mascot">
+    <div id="bubble"></div>
+    <div id="fox">🦊</div>
+  </div>
+
+  <div id="toast"></div>
+  <div id="confetti"></div>
+
+  <!-- ПАНЕЛЬ УЧИТЕЛЯ -->
+  <div id="panel">
+    <button id="panelclose">✖</button>
+    <h3>⚙️ Панель учителя</h3>
+    <div class="qcount" style="text-align:center;">Перейти к слайду</div>
+    <div id="panelgrid"></div>
+    <div id="timerbig">00:00</div>
+    <button class="btn small teal" id="timer-toggle">▶ Запустить таймер</button>
+    <button class="btn small ghost" id="timer-reset">Сбросить таймер</button>
+    <hr style="border:none;border-top:3px solid #EFE9DA;margin:16px 0;">
+    <button class="btn small yellow" id="p-show">Показать ответ 👁</button>
+    <button class="btn small ghost" id="p-reset-task">Сбросить задание 🔄</button>
+    <button class="btn small ghost" id="p-reset-stars">Сбросить очки ⭐</button>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   ДАННЫЕ УРОКА — меняйте предложения и слова ЗДЕСЬ,
+   не трогая логику ниже.
+   ============================================================ */
+const LESSON_DATA = {
+  mascotName: "Лисёнок Лёва",
+
+  bubbles: [
+    "Привет! Я Лисёнок Лёва! 🦊 Готов к уроку?",
+    "Сегодня узнаем много интересного!",
+    "Каждое слово — кусочек пазла. Собери пазлы!",
+    "Слова дружат и рассказывают мини-истории!",
+    "Помни: у простого предложения ОДНА основа!",
+    "Подлежащее — кто? Сказуемое — что делает?",
+    "Разминаемся! Двигайся вместе со мной!",
+    "Собери слова по порядку, как в истории!",
+    "Найди главные слова — основу!",
+    "Какое слово подходит по смыслу?",
+    "Считай основы: одна — простое, две — сложное!",
+    "Слова перепутались! Помоги им встать правильно!",
+    "Быстрее! Хватай предложение!",
+    "Проверим, как ты понял урок!",
+    "Честно скажи, как дела!",
+    "Ты молодец! Забирай медаль!"
+  ],
+
+  warmup: [
+    { text: "кошка",            type: "word" },
+    { text: "Мама читает книгу.",   type: "sentence" },
+    { text: "бежит",            type: "word" },
+    { text: "Солнце светит.",   type: "sentence" },
+    { text: "на столе",         type: "word" },
+    { text: "Дети играют во дворе.", type: "sentence" }
+  ],
+
+  whatDemo: ["Мама", "варит", "суп."],
+
+  simpleSentence: { words: ["Лисёнок", "прыгает", "высоко."], base: [0, 1] },
+
+  membersIntro: { words: ["Лисёнок", "ловит", "бабочку."], subj: 0, pred: 1 },
+  membersTask:  { words: ["Мама", "печёт", "вкусный", "пирог."], subj: 0, pred: 1 },
+
+  physmin: [
+    { text: "Прыгаем!",   emoji: "🐰" },
+    { text: "Хлопаем!",   emoji: "👏" },
+    { text: "Кружимся!",  emoji: "🌀" },
+    { text: "Приседаем!", emoji: "🏋️" },
+    { text: "Машем руками!", emoji: "👋" }
+  ],
+  physSeconds: 60,
+
+  assemble: [
+    { words: ["Мальчик", "бросает", "мяч."] },
+    { words: ["Солнце", "греет", "землю."] }
+  ],
+
+  findBase: [
+    { words: ["Щенок", "грызёт", "косточку."], subj: 0, pred: 1 },
+    { words: ["Сестра", "поёт", "песню."], subj: 0, pred: 1 }
+  ],
+
+  fillGap: [
+    { before: "Собака громко", after: "во дворе.",
+      options: ["лает", "зелёный", "книга"], answer: 0 },
+    { before: "Дети весело", after: "снежки.",
+      options: ["бросают", "большая", "между"], answer: 0 }
+  ],
+
+  simpleOrNot: [
+    { text: "Мама печёт пирог.",              type: "simple" },
+    { text: "Солнце светит, и птицы поют.",   type: "complex" },
+    { text: "Щенок спит.",                    type: "simple" },
+    { text: "Дождь кончился, и вышло солнце.",type: "complex" }
+  ],
+
+  fixError: { words: ["греет", "солнце", "нас"], correct: ["солнце", "греет", "нас"] },
+
+  speedGame: [
+    [ "кошка", "бежит", "Собака спит.", "дом" ],
+    [ "Мама поёт.", "красный", "стол", "мяч" ],
+    [ "лиса", "Лиса бежит.", "сад", "гриб" ]
+  ],
+
+  quiz: [
+    { q: "Что такое предложение?",
+      opts: ["Слова, связанные по смыслу", "Набор букв", "Один звук"], a: 0 },
+    { q: "«Лисёнок прыгает». Какое слово — подлежащее?",
+      opts: ["прыгает", "Лисёнок", "высоко"], a: 1 },
+    { q: "На какой вопрос отвечает сказуемое?",
+      opts: ["Какой?", "Где?", "Что делает?"], a: 2 },
+    { q: "Сколько основ в простом предложении?",
+      opts: "Одна", opts2: null,
+      options: ["Три", "Две", "Одна"], a: 2 },
+    { q: "Какое предложение — простое?",
+      options: ["Кошка спит, а собака лает.", "Кошка спит.", "и, а, но"], a: 1 }
+  ],
+
+  praise: [
+    "Отличная работа! Ты настоящий знаток предложений! 🎉",
+    "Хороший результат! Ещё чуть-чуть — и всё получится! 💪",
+    "Молодец, что старался! Повторим вместе ещё разок? 🌱"
+  ]
+};
+/* ================== КОНЕЦ БЛОКА ДАННЫХ ================== */
+
+/* ---------------- СОСТОЯНИЕ ---------------- */
+const state = {
+  slide: 0, stars: 0, sound: true, reduced: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  mistakes: {}, done: {}
+};
+const slides = [...document.querySelectorAll(".slide")];
+const TOTAL = slides.length;
+
+/* ---------------- ЗВУК (Web Audio API) ---------------- */
+let AC = null;
+function ac(){ if(!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); return AC; }
+function tone(freq, dur, type="sine", vol=0.22, when=0){
+  if(!state.sound) return;
+  try{
+    const ctx = ac(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ctx.currentTime + when);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + when + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(ctx.currentTime + when); o.stop(ctx.currentTime + when + dur + .05);
+  }catch(e){}
+}
+const snd = {
+  good(){ tone(523,.15,"sine"); tone(659,.15,"sine",.22,.12); tone(784,.3,"sine",.22,.24); },
+  bad(){ tone(300,.2,"sine",.14); tone(240,.3,"sine",.12,.15); },
+  move(){ tone(600,.08,"triangle",.12); },
+  win(){ [523,659,784,1047].forEach((f,i)=>tone(f,.22,"sine",.2,i*.13)); }
+};
+
+/* ---------------- УТИЛИТЫ ---------------- */
+const $ = s => document.querySelector(s);
+const shuffle = a => { a=[...a]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+let toastT = null;
+function toast(msg, cls=""){
+  const t = $("#toast"); t.textContent = msg; t.className = "show " + cls;
+  clearTimeout(toastT); toastT = setTimeout(()=> t.className = "", 2400);
+}
+function addStars(n){ state.stars += n; $("#starcount").textContent = state.stars; }
+function happyFox(){ const f=$("#fox"); f.classList.remove("happy"); void f.offsetWidth; f.classList.add("happy"); }
+function confetti(n=40){
+  if(state.reduced) return;
+  const c = $("#confetti"), colors = ["#FF6B6B","#4ECDC4","#FFD93D","#A78BFA","#6BCB77"];
+  for(let i=0;i<n;i++){
+    const d = document.createElement("div"); d.className = "cf";
+    d.style.left = Math.random()*100 + "vw";
+    d.style.background = colors[i%colors.length];
+    d.style.animationDuration = (1.4 + Math.random()*1.6) + "s";
+    d.style.animationDelay = (Math.random()*.4) + "s";
+    d.style.transform = `rotate(${Math.random()*360}deg)`;
+    c.appendChild(d); setTimeout(()=>d.remove(), 3600);
+  }
+}
+function success(stars, msg){
+  snd.good(); happyFox(); confetti(); addStars(stars);
+  toast(msg, "good");
+}
+function fail(slideId, hint, target){
+  snd.bad();
+  state.mistakes[slideId] = (state.mistakes[slideId]||0) + 1;
+  toast("Подумай ещё! " + (state.mistakes[slideId] >= 2 ? hint : ""), "hint");
+  if(target){ target.classList.remove("shake"); void target.offsetWidth; target.classList.add("shake"); }
+}
+
+/* ---------------- DRAG & DROP (pointer events, touch-friendly) ---------------- */
+function makeDraggable(chip, getDropZones, onDrop){
+  chip.addEventListener("pointerdown", e => {
+    if(chip.classList.contains("locked")) return;
+    e.preventDefault();
+    const rect = chip.getBoundingClientRect();
+    const ghost = chip.cloneNode(true);
+    ghost.classList.add("floating"); ghost.classList.remove("dragging");
+    ghost.style.width = rect.width + "px"; ghost.style.height = rect.height + "px";
+    document.body.appendChild(ghost);
+    chip.classList.add("dragging");
+    const ox = e.clientX - rect.left, oy = e.clientY - rect.top;
+    const move = ev => {
+      ghost.style.left = (ev.clientX - ox) + "px";
+      ghost.style.top  = (ev.clientY - oy) + "px";
+      getDropZones().forEach(z => z.classList.remove("hot"));
+      const z = getDropZones().find(z => {
+        const r = z.getBoundingClientRect();
+        return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+      });
+      if(z) z.classList.add("hot");
+    };
+    const up = ev => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      const zones = getDropZones();
+      zones.forEach(z => z.classList.remove("hot"));
+      const hit = zones.find(z => {
+        const r = z.getBoundingClientRect();
+        return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+      });
+      ghost.remove(); chip.classList.remove("dragging");
+      if(hit) onDrop(chip, hit); 
+      else { chip.style.opacity = 1; }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    move(e);
+  });
+}
+
+/* ---------------- НАВИГАЦИЯ / ПРОГРЕСС ---------------- */
+const dotsBox = $("#dots");
+slides.forEach((_, i) => {
+  const d = document.createElement("div"); d.className = "dot";
+  d.addEventListener("click", () => go(i));
+  dotsBox.appendChild(d);
+});
+function updateProgress(){
+  [...dotsBox.children].forEach((d, i) => {
+    d.classList.toggle("active", i === state.slide);
+    d.classList.toggle("done", i < state.slide);
+  });
+  $("#btn-prev").disabled = state.slide === 0;
+  $("#btn-next").disabled = state.slide === TOTAL - 1;
+}
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  slides[state.slide].classList.remove("active");
+  slides[state.slide].classList.toggle("exit-left", n > state.slide);
+  state.slide = n;
+  slides[n].classList.remove("exit-left");
+  slides[n].classList.add("active");
+  updateProgress(); snd.move();
+  const b = $("#bubble");
+  b.textContent = LESSON_DATA.bubbles[n] || ""; b.classList.add("show");
+  if(taskInits[n]) taskInits[n]();
+  if(n === TOTAL - 1) showFinal();
+}
+$("#btn-prev").addEventListener("click", () => go(state.slide - 1));
+$("#btn-next").addEventListener("click", () => go(state.slide + 1));
+document.addEventListener("keydown", e => {
+  if(e.key === "ArrowRight") go(state.slide + 1);
+  if(e.key === "ArrowLeft") go(state.slide - 1);
+});
+document.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => go(+b.dataset.go)));
+
+/* звук / полный экран */
+$("#sndbtn").addEventListener("click", () => {
+  state.sound = !state.sound;
+  $("#sndbtn").textContent = state.sound ? "🔊" : "🔇";
+  if(state.sound) snd.move();
+});
+$("#fsbtn").addEventListener("click", () => {
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen();
+});
+
+/* ---------------- ЦЕЛЬ УРОКА: появление пунктов ---------------- */
+let goalTimer = null;
+function animateGoals(){
+  clearTimeout(goalTimer);
+  const goals = document.querySelectorAll(".goal");
+  goals.forEach(g => g.classList.remove("in"));
+  goals.forEach((g, i) => setTimeout(() => g.classList.add("in"), 300 + i*350));
+}
+
+/* ---------------- СЛАЙД 3: слова собираются в предложение ---------------- */
+function initWhat(){
+  const box = $("#assemble-demo"); box.innerHTML = "";
+  LESSON_DATA.whatDemo.forEach((w, i) => {
+    const c = document.createElement("div"); c.className = "wordchip locked"; c.textContent = w;
+    const dx = (Math.random()*300 - 150), dy = (Math.random()*200 - 100), rot = (Math.random()*50 - 25);
+    c.style.opacity = "0";
+    box.appendChild(c);
+    setTimeout(() => {
+      c.style.transition = "transform 1s cubic-bezier(.2,1.4,.4,1), opacity .5s";
+      c.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
+      c.style.opacity = "1";
+      setTimeout(() => { c.style.transform = "none"; }, 700 + i*250);
+    }, 50);
+  });
+  $("#what-msg").textContent = "Смотри, как разрозненные слова собрались в мини-историю! 💫";
+}
+
+/* ---------------- СЛАЙД 4: простое предложение ---------------- */
+function initSimple(){
+  const box = $("#simple-sent"); box.innerHTML = "";
+  LESSON_DATA.simpleSentence.words.forEach((w, i) => {
+    const c = document.createElement("div"); c.className = "wordchip locked"; c.textContent = w;
+    c.dataset.base = LESSON_DATA.simpleSentence.base.includes(i) ? "1" : "0";
+    box.appendChild(c);
+  });
+  $("#btn-foundation").disabled = false;
+  $("#btn-foundation").textContent = "Показать основу ✨";
+}
+$("#btn-foundation").addEventListener("click", () => {
+  const chips = [...$("#simple-sent").children];
+  chips.forEach(c => c.classList.remove("u-both"));
+  const base = chips.filter(c => c.dataset.base === "1");
+  base.forEach((c, i) => setTimeout(() => c.classList.add("u-both"), i*300));
+  $("#btn-foundation").textContent = "Это основа! ☝️";
+  snd.good(); happyFox();
+  toast("Основа — главные слова предложения!", "good");
+});
+
+/* ---------------- СЛАЙД 5: главные члены ---------------- */
+let membersStage = 0;
+function initMembers(){
+  membersStage = 0;
+  const box = $("#members-sent"); box.innerHTML = "";
+  const data = LESSON_DATA.membersTask;
+  data.words.forEach((w, i) => {
+    const c = document.createElement("div"); c.className = "wordchip"; c.textContent = w;
+    c.dataset.role = i === data.subj ? "subj" : (i === data.pred ? "pred" : "other");
+    c.addEventListener("click", () => pickMember(c));
+    box.appendChild(c);
+  });
+  $("#members-task").textContent = "Коснись сначала подлежащего (кто?), потом сказуемого (что делает?)";
+}
+function pickMember(c){
+  if(c.classList.contains("u-sub") || c.classList.contains("u-pred")) return;
+  if(membersStage === 0){
+    if(c.dataset.role === "subj"){
+      c.classList.add("u-sub", "pop"); membersStage = 1; snd.good();
+      toast("Верно! Подлежащее — кто? 🐣", "good");
+    } else fail("members", "Подлежащее отвечает на вопрос «кто?».", c);
+  } else if(membersStage === 1){
+    if(c.dataset.role === "pred"){
+      c.classList.add("u-pred"); membersStage = 2; snd.good(); happyFox(); confetti(25); addStars(2);
+      toast("Супер! Сказуемое — что делает? ⚡", "good");
+      $("#members-task").textContent = "«Мама печёт» — основа предложения! ⭐";
+    } else fail("members", "Сказуемое — это действие, «что делает?».", c);
+  }
+}
+
+/* ---------------- СЛАЙД 6: ФИЗКУЛЬТМИНУТКА ---------------- */
+let physInt = null;
+function initPhys(){
+  clearInterval(physInt);
+  $("#phystimer").textContent = LESSON_DATA.physSeconds;
+  $("#physfill").style.width = "100%";
+  $("#physstep").innerHTML = "<span class='pe'>🌟</span><span>Приготовились!</span>";
+  const b = $("#btn-phys"); b.disabled = false; b.textContent = "Старт!";
+}
+$("#btn-phys").addEventListener("click", () => {
+  const b = $("#btn-phys"); b.disabled = true;
+  let total = LESSON_DATA.physSeconds;
+  const per = Math.floor(total / LESSON_DATA.physmin.length);
+  let step = 0, left = total;
+  const show = () => {
+    const a = LESSON_DATA.physmin[Math.min(step, LESSON_DATA.physmin.length - 1)];
+    $("#physstep").innerHTML = `<span class="pe">${a.emoji}</span><span>${a.text}</span>`;
+  };
+  snd.move(); show();
+  physInt = setInterval(() => {
+    left--;
+    $("#phystimer").textContent = left;
+    $("#physfill").style.width = (left / total * 100) + "%";
+    if(left % per === 0 && step < LESSON_DATA.physmin.length - 1){ step++; show(); snd.move(); }
+    if(left <= 0){
+      clearInterval(physInt);
+      $("#physstep").innerHTML = "<span class='pe'>🎉</span><span>Молодцы! Отдохнули!</span>";
+      snd.win(); happyFox(); confetti(30); addStars(1);
+    }
+  }, 1000);
+});
+
+/* ---------------- СЛАЙД 7: СОБЕРИ ПРЕДЛОЖЕНИЕ ---------------- */
+let asmRound = 0;
+function initAssemble(){
+  buildAssemble(LESSON_DATA.assemble[asmRound % LESSON_DATA.assemble.length].words, "#asm-src", "#asm-slots", "asm");
+}
+function buildAssemble(words, srcSel, slotsSel, key){
+  const src = $(srcSel), slots = $(slotsSel);
+  src.innerHTML = ""; slots.innerHTML = "";
+  shuffle(words).forEach((w, i) => {
+    const c = document.createElement("div"); c.className = "wordchip"; c.textContent = w;
+    c.dataset.w = w; c.dataset.key = key;
+    c.addEventListener("click", () => {
+      if(c.classList.contains("locked")) return;
+      const free = [...slots.children].find(s => !s.firstChild);
+      if(free){ placeChip(c, free); snd.move(); }
+    });
+    makeDraggable(c, () => [...slots.children], (chip, slot) => { if(!slot.firstChild) placeChip(chip, slot); });
+    src.appendChild(c);
+  });
+  words.forEach(() => {
+    const s = document.createElement("div"); s.className = "slot"; slots.appendChild(s);
+  });
+}
+function placeChip(chip, slot){
+  chip.classList.add("locked"); chip.style.animation = "none";
+  slot.appendChild(chip); slot.classList.add("hot");
+  setTimeout(() => slot.classList.remove("hot"), 300);
+}
+$("#asm-check").addEventListener("click", () => {
+  const slots = [...$("#asm-slots").children];
+  if(slots.some(s => !s.firstChild)){ toast("Сначала разложи все слова! 💡", "hint"); snd.bad(); return; }
+  const got = slots.map(s => s.firstChild.dataset.w);
+  const need = LESSON_DATA.assemble[asmRound % LESSON_DATA.assemble.length].words;
+  if(got.join("|") === need.join("|")){
+    const first = slots[0].firstChild;
+    first.textContent = first.textContent[0].toUpperCase() + first.textContent.slice(1);
+    slots.forEach((s, i) => setTimeout(() => s.firstChild.classList.add("pop"), i*150));
+    success(2, "Предложение собрано! Заглавная буква и точка на месте! 🎉");
+    asmRound++;
+    setTimeout(() => { if(state.slide === 7) initAssemble(); }, 2200);
+  } else fail("asm", "Подумай: кто? что делает? С чего начинается история?", $("#asm-slots"));
+});
+$("#asm-again").addEventListener("click", () => { snd.move(); initAssemble(); });
+$("#asm-hint").addEventListener("click", () => toast("Начни с слова «кто?», потом «что делает?» 💡", "hint"));
+
+/* ---------------- СЛАЙД 8: НАЙДИ ОСНОВУ ---------------- */
+let fbRound = 0, fbFound = { subj:false, pred:false };
+function initFindBase(){
+  fbFound = { subj:false, pred:false };
+  const data = LESSON_DATA.findBase[fbRound % LESSON_DATA.findBase.length];
+  const box = $("#fb-sent"); box.innerHTML = "";
+  data.words.forEach((w, i) => {
+    const c = document.createElement("div"); c.className = "wordchip"; c.textContent = w;
+    c.dataset.role = i === data.subj ? "subj" : (i === data.pred ? "pred" : "other");
+    c.addEventListener("click", () => {
+      if(c.dataset.role === "subj" && !fbFound.subj){
+        c.classList.add("u-sub", "pop"); fbFound.subj = true; snd.good();
+        toast("Подлежащее найдено! 🐣", "good");
+      } else if(c.dataset.role === "pred" && !fbFound.pred){
+        c.classList.add("u-pred"); fbFound.pred = true; snd.good();
+        toast("Сказуемое найдено! ⚡", "good");
+      } else if(c.dataset.role === "other"){
+        fail("fb", "Главные слова: «кто?» и «что делает?».", c); return;
+      }
+      if(fbFound.subj && fbFound.pred){
+        happyFox(); confetti(25); addStars(2);
+        toast("Основа найдена! ⭐⭐", "good");
+        fbRound++;
+        setTimeout(() => { if(state.slide === 8) initFindBase(); }, 2200);
+      }
+    });
+    box.appendChild(c);
+  });
+}
+$("#fb-again").addEventListener("click", () => { snd.move(); initFindBase(); });
+$("#fb-hint").addEventListener("click", () => toast("Подлежащее — кто? Сказуемое — что делает? 💡", "hint"));
+
+/* ---------------- СЛАЙД 9: ВСТАВЬ СЛОВО ---------------- */
+let gapRound = 0, gapSel = -1;
+function initGap(){
+  gapSel = -1;
+  const d = LESSON_DATA.fillGap[gapRound % LESSON_DATA.fillGap.length];
+  $("#gap-sent").textContent = `${d.before} ______ ${d.after}`;
+  const box = $("#gap-opts"); box.innerHTML = "";
+  d.options.forEach((o, i) => {
+    const b = document.createElement("button"); b.className = "opt"; b.textContent = o;
+    b.addEventListener("click", () => {
+      gapSel = i;
+      [...box.children].forEach(x => x.classList.remove("sel"));
+      b.classList.add("sel"); snd.move();
+    });
+    box.appendChild(b);
+  });
+}
+$("#gap-check").addEventListener("click", () => {
+  if(gapSel < 0){ toast("Выбери слово! 💡", "hint"); snd.bad(); return; }
+  const d = LESSON_DATA.fillGap[gapRound % LESSON_DATA.fillGap.length];
+  if(gapSel === d.answer){
+    $("#gap-opts").children[d.answer].classList.add("right");
+    const sent = $("#gap-sent");
+    sent.textContent = `${d.before} ${d.options[d.answer]} ${d.after}`;
+    success(2, "Слово подошло по смыслу! 🎉");
+    gapRound++;
+    setTimeout(() => { if(state.slide === 9) initGap(); }, 2200);
+  } else {
+    $("#gap-opts").children[gapSel].classList.add("wrongpick");
+    fail("gap", "Прочитай предложение вслух — какое слово подходит?", $("#gap-opts"));
+  }
+});
+$("#gap-again").addEventListener("click", () => { snd.move(); initGap(); });
+$("#gap-hint").addEventListener("click", () => {
+  const d = LESSON_DATA.fillGap[gapRound % LESSON_DATA.fillGap.length];
+  toast(`Подсказка: «${d.before} … ${d.after}» — что делает тот, о ком речь? 💡`, "hint");
+});
+
+/* ---------------- СЛАЙД 10: ПРОСТОЕ ИЛИ НЕТ ---------------- */
+function initSimpleOrNot(){
+  const pool = $("#so-pool"); pool.innerHTML = "";
+  document.querySelectorAll("#s-simpleor .zone").forEach(z => {
+    z.classList.remove("good","bad");
+    [...z.querySelectorAll(".wordchip")].forEach(c => c.remove());
+  });
+  shuffle(LESSON_DATA.simpleOrNot).forEach(item => {
+    const c = document.createElement("div"); c.className = "wordchip"; c.textContent = item.text;
+    c.dataset.type = item.type;
+    c.addEventListener("click", () => { /* touch fallback: cycle pools */ });
+    makeDraggable(c, () => [...document.querySelectorAll("#s-simpleor .zone")], (chip, zone) => {
+      if([...zone.querySelectorAll(".wordchip")].length >= 2) { toast("В этой корзине уже 2 карточки!", "hint"); return; }
+      zone.appendChild(chip); snd.move();
+    });
+    pool.appendChild(c);
+  });
+}
+$("#so-check").addEventListener("click", () => {
+  const zones = [...document.querySelectorAll("#s-simpleor .zone")];
+  const poolCount = $("#so-pool").children.length;
+  if(poolCount > 0){ toast("Разложи все карточки по корзинам! 💡", "hint"); snd.bad(); return; }
+  let ok = true;
+  zones.forEach(z => {
+    const good = [...z.querySelectorAll(".wordchip")].every(c => c.dataset.type === z.dataset.type);
+    z.classList.add(good ? "good" : "bad");
+    if(!good) ok = false;
+  });
+  if(ok){
+    success(3, "Все предложения на своих местах! 🎉");
+    setTimeout(initSimpleOrNot, 2600);
+  } else fail("so", "В простом предложении ОДНА основа. Считай: «кто? что делает?»", $("#s-simpleor .zones"));
+});
+$("#so-again").addEventListener("click", () => { snd.move(); initSimpleOrNot(); });
+$("#so-hint").addEventListener("click", () => {
+  const z = document.querySelector('#s-simpleor .zone[data-type="complex"]');
+  const wrong = [...z.querySelectorAll(".wordchip")].find(c => c.dataset.type === "simple");
+  if(wrong){ wrong.classList.add("pop"); toast("Посмотри на корзину «Две основы» — кто там лишний? 💡", "hint"); }
+  else toast("Считай основы: одна — в «Простое», две — во вторую корзину. 💡", "hint");
+});
+
+/* ---------------- СЛАЙД 11: ИСПРАВЬ ОШИБКУ ---------------- */
+function initFix(){
+  const d = LESSON_DATA.fixError;
+  buildAssemble(d.words, "#fix-src", "#fix-slots", "fix");
+}
+$("#fix-check").addEventListener("click", () => {
+  const slots = [...$("#fix-slots").children];
+  if(slots.some(s => !s.firstChild)){ toast("Сначала расставь все слова! 💡", "hint"); snd.bad(); return; }
+  const got = slots.map(s => s.firstChild.dataset.w);
+  const need = LESSON_DATA.fixError.correct;
+  if(got.join("|") === need.join("|")){
+    const first = slots[0].firstChild;
+    first.textContent = first.textContent[0].toUpperCase() + first.textContent.slice(1);
+    slots.forEach((s, i) => setTimeout(() => s.firstChild.classList.add("pop"), i*150));
+    success(2, "Ошибка исправлена: «Солнце греет нас.» ☀️");
+    setTimeout(() => { if(state.slide === 11) initFix(); }, 2600);
+  } else fail("fix", "О чём эта история? Начни с того, «что» или «кто».", $("#fix-slots"));
+});
+$("#fix-again").addEventListener("click", () => { snd.move(); initFix(); });
+$("#fix-hint").addEventListener("click", () => toast("Кто греет? Солнце! Начни со слова «солнце». 💡", "hint"));
+
+/* ---------------- СЛАЙД 12: ИГРА НА СКОРОСТЬ ---------------- */
+let spRound = 0;
+function initSpeed(){
+  spRound = 0; showSpeedRound();
+}
+function showSpeedRound(){
+  const round = LESSON_DATA.speedGame[spRound % LESSON_DATA.speedGame.length];
+  $("#sp-round").textContent = `Раунд ${spRound + 1} из ${LESSON_DATA.speedGame.length}`;
+  const grid = $("#sp-grid"); grid.innerHTML = "";
+  shuffle(round).forEach(txt => {
+    const isSentence = txt.trim().endsWith(".");
+    const c = document.createElement("button");
+    c.className = "wordchip"; c.style.border = "none"; c.textContent = txt;
+    c.style.fontSize = "clamp(28px,2.8vw,46px)";
+    c.addEventListener("click", () => {
+      if(isSentence){
+        c.classList.add("u-both", "pop"); snd.good(); confetti(20);
+        spRound++;
+        if(spRound >= LESSON_DATA.speedGame.length){
+          happyFox(); addStars(3); snd.win();
+          toast("Все предложения пойманы! +3 звезды! 🏆", "good");
+          $("#sp-round").textContent = "Победа! 🏆";
+        } else setTimeout(showSpeedRound, 900);
+      } else fail("speed", "Предложение — это мини-история, оно заканчивается точкой!", c);
+    });
+    grid.appendChild(c);
+  });
+}
+
+/* ---------------- СЛАЙД 13: ИТОГОВЫЙ ТЕСТ ---------------- */
+let qzIdx = 0, qzStars = 0;
+function initQuiz(){
+  qzIdx = 0; qzStars = 0;
+  showQuestion();
+}
+function showQuestion(){
+  const d = LESSON_DATA.quiz[qzIdx];
+  $("#qz-count").textContent = `Вопрос ${qzIdx + 1} из ${LESSON_DATA.quiz.length} · Звёзд: ${qzStars}`;
+  $("#qz-q").textContent = d.q;
+  const box = $("#qz-opts"); box.innerHTML = "";
+  d.options.forEach((o, i) => {
+    const b = document.createElement("button"); b.className = "opt"; b.textContent = o;
+    b.addEventListener("click", () => {
+      [...box.children].forEach(x => x.disabled = true);
+      if(i === d.a){
+        b.classList.add("right"); snd.good(); confetti(15);
+        qzStars++; addStars(1);
+        toast("Верно! +1 звезда ⭐", "good");
+      } else {
+        b.classList.add("wrongpick");
+        box.children[d.a].classList.add("right");
+        snd.bad(); toast("Почти! Смотри правильный ответ. 💡", "hint");
+      }
+      setTimeout(() => {
+        qzIdx++;
+        if(qzIdx < LESSON_DATA.quiz.length) showQuestion();
+        else {
+          $("#qz-count").textContent = `Тест завершён! Звёзд: ${qzStars} из ${LESSON_DATA.quiz.length}`;
+          $("#qz-q").textContent = qzStars >= 4 ? "Отличный результат! 🎉" : "Хорошая работа! 💪";
+          $("#qz-opts").innerHTML = "";
+          if(qzStars >= 4){ happyFox(); snd.win(); confetti(50); }
+        }
+      }, 1600);
+    });
+    box.appendChild(b);
+  });
+}
+
+/* ---------------- СЛАЙД 14: РЕФЛЕКСИЯ ---------------- */
+document.querySelectorAll(".tlbtn").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".tlbtn").forEach(x => x.classList.remove("sel"));
+  b.classList.add("sel"); snd.good();
+  const msg = { green:"Здорово! Ты молодец! 🎉", yellow:"Отлично, зададим вопросы! 🙌", red:"Не страшно, поможем! 🤗" };
+  toast(msg[b.dataset.r], "good");
+}));
+document.querySelectorAll(".mood").forEach(m => m.addEventListener("click", () => {
+  document.querySelectorAll(".mood").forEach(x => x.classList.remove("sel"));
+  m.classList.add("sel"); snd.move(); toast("Спасибо! 🦊", "good");
+}));
+
+/* ---------------- СЛАЙД 15: ИТОГ ---------------- */
+function showFinal(){
+  $("#final-stars").textContent = state.stars;
+  const p = state.stars >= 15 ? LESSON_DATA.praise[0] : (state.stars >= 8 ? LESSON_DATA.praise[1] : LESSON_DATA.praise[2]);
+  $("#final-praise").textContent = p;
+  snd.win(); confetti(60);
+}
+$("#btn-restart").addEventListener("click", () => {
+  state.stars = 0; $("#starcount").textContent = 0;
+  state.mistakes = {}; asmRound = 0; fbRound = 0; gapRound = 0;
+  go(0);
+});
+
+/* ---------------- ПАНЕЛЬ УЧИТЕЛЯ ---------------- */
+const panel = $("#panel");
+$("#gearbtn").addEventListener("click", () => panel.classList.toggle("open"));
+$("#panelclose").addEventListener("click", () => panel.classList.remove("open"));
+const pg = $("#panelgrid");
+slides.forEach((s, i) => {
+  const b = document.createElement("button"); b.textContent = i + 1;
+  b.addEventListener("click", () => { go(i); panel.classList.remove("open"); });
+  pg.appendChild(b);
+});
+$("#p-show").addEventListener("click", () => {
+  const n = state.slide;
+  if(n === 4) $("#btn-foundation").click();
+  else if(n === 5){ const s = $("#members-sent").children[LESSON_DATA.membersTask.subj]; if(s) s.click(); setTimeout(()=>{ const p = $("#members-sent").children[LESSON_DATA.membersTask.pred]; if(p) p.click(); }, 600); }
+  else if(n === 8){ const s = $("#fb-sent").children[LESSON_DATA.findBase[fbRound % LESSON_DATA.findBase.length].subj]; if(s) s.click(); setTimeout(()=>{ const p = $("#fb-sent").children[LESSON_DATA.findBase[fbRound % LESSON_DATA.findBase.length].pred]; if(p) p.click(); }, 600); }
+  else if(n === 9){ const d = LESSON_DATA.fillGap[gapRound % LESSON_DATA.fillGap.length]; $("#gap-opts").children[d.answer].click(); $("#gap-check").click(); }
+  else toast("Для этого слайда ответ показывается в самом задании 💡", "hint");
+});
+$("#p-reset-task").addEventListener("click", () => { if(taskInits[state.slide]) taskInits[state.slide](); toast("Задание сброшено 🔄", "hint"); });
+$("#p-reset-stars").addEventListener("click", () => { state.stars = 0; $("#starcount").textContent = 0; toast("Очки сброшены ⭐", "hint"); });
+
+/* таймер урока */
+let lessonTimer = null, lessonSec = 0;
+function fmt(s){ return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0"); }
+$("#timer-toggle").addEventListener("click", () => {
+  if(lessonTimer){ clearInterval(lessonTimer); lessonTimer = null; $("#timer-toggle").textContent = "▶ Запустить таймер"; }
+  else {
+    lessonTimer = setInterval(() => { lessonSec++; $("#timerbig").textContent = fmt(lessonSec); }, 1000);
+    $("#timer-toggle").textContent = "⏸ Пауза";
+  }
+});
+$("#timer-reset").addEventListener("click", () => { lessonSec = 0; $("#timerbig").textContent = "00:00"; });
+
+/* ---------------- РАЗМИНКА (слайд 2) ---------------- */
+function initWarmup(){
+  const pool = $("#warmup-pool"); pool.innerHTML = "";
+  document.querySelectorAll("#s-warmup .zone").forEach(z => {
+    z.classList.remove("good","bad");
+    [...z.querySelectorAll(".wordchip")].forEach(c => c.remove());
+  });
+  shuffle(LESSON_DATA.warmup).forEach(item => {
+    const c = document.createElement("div"); c.className = "wordchip"; c.textContent = item.text;
+    c.dataset.type = item.type;
+    makeDraggable(c, () => [...document.querySelectorAll("#s-warmup .zone")], (chip, zone) => { zone.appendChild(chip); snd.move(); });
+    pool.appendChild(c);
+  });
+}
+/* авто-проверка разминки при входе в слайд 3 */
+function checkWarmup(){
+  const zones = [...document.querySelectorAll("#s-warmup .zone")];
+  const all = zones.flatMap(z => [...z.querySelectorAll(".wordchip")]);
+  if(all.length < LESSON_DATA.warmup.length) return; // ещё не все разложены
+  const ok = all.every(c => c.dataset.type === c.parentElement.dataset.type);
+  zones.forEach(z => z.classList.add(z.querySelector(".wordchip[data-type]:not([data-type='" + z.dataset.type + "'])") ? "bad" : "good"));
+  if(ok){ success(2, "Разминка пройдена! 🎉"); }
+}
+
+/* ---------------- РЕЕСТР ЗАДАНИЙ ПО СЛАЙДАМ ---------------- */
+const taskInits = {
+  1: animateGoals,
+  2: initWarmup,
+  3: initWhat,
+  4: initSimple,
+  5: initMembers,
+  6: initPhys,
+  7: initAssemble,
+  8: initFindBase,
+  9: initGap,
+  10: initSimpleOrNot,
+  11: initFix,
+  12: initSpeed,
+  13: initQuiz
+};
+/* переопределим go: проверка разминки при уходе со слайда 2 */
+const _go = go;
+go = function(n){
+  if(state.slide === 2 && n > 2) checkWarmup();
+  _go(n);
+};
+
+/* ---------------- СТАРТ ---------------- */
+initSimple();        // чтобы слайд 4 был готов
+updateProgress();
+$("#bubble").textContent = LESSON_DATA.bubbles[0];
+$("#bubble").classList.add("show");
+slides[0].classList.add("active");
+</script>
+</body>
+</html>
